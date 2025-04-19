@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"reflect"
 	"testing"
 
@@ -9,36 +10,135 @@ import (
 
 // go test -v homework_test.go
 
-type OrderedMap struct {
-	// need to implement
+type cmpFn[K comparable] func(a, b K) int
+
+type Node[K comparable, V any] struct {
+	left, right *Node[K, V]
+	key         K
+	value       V
 }
 
-func NewOrderedMap() OrderedMap {
-	return OrderedMap{} // need to implement
+type OrderedMap[K comparable, V any] struct {
+	root *Node[K, V]
+	size int
+	cmp  cmpFn[K]
 }
 
-func (m *OrderedMap) Insert(key, value int) {
-	// need to implement
+func NewOrderedMap[K comparable, V any](cmp cmpFn[K]) OrderedMap[K, V] {
+	return OrderedMap[K, V]{cmp: cmp}
 }
 
-func (m *OrderedMap) Erase(key int) {
-	// need to implement
+func NewNode[K comparable, V any](key K, value V) *Node[K, V] {
+	return &Node[K, V]{key: key, value: value}
 }
 
-func (m *OrderedMap) Contains(key int) bool {
-	return false // need to implement
+func (m *OrderedMap[K, V]) Insert(key K, value V) {
+	curr := m.root
+
+	var prev *Node[K, V]
+	for curr != nil {
+		prev = curr
+		switch {
+		case m.cmp(prev.key, key) < 0:
+			curr = curr.right
+		case m.cmp(prev.key, key) > 0:
+			curr = curr.left
+		default:
+			curr.value = value
+			return
+		}
+	}
+
+	newNode := NewNode(key, value)
+	switch {
+	case prev == nil:
+		m.root = newNode
+	case m.cmp(prev.key, key) < 0:
+		prev.right = newNode
+	case m.cmp(prev.key, key) > 0:
+		prev.left = newNode
+	}
+	m.size++
 }
 
-func (m *OrderedMap) Size() int {
-	return 0 // need to implement
+func (m *OrderedMap[K, V]) Erase(key K) {
+	if newRoot, deleted := deleteNode(m.root, key, m.cmp); deleted {
+		m.size--
+		m.root = newRoot
+	}
 }
 
-func (m *OrderedMap) ForEach(action func(int, int)) {
-	// need to implement
+func (m *OrderedMap[K, V]) Contains(key K) bool {
+	curr := m.root
+
+	for curr != nil {
+		switch {
+		case m.cmp(curr.key, key) < 0:
+			curr = curr.right
+		case m.cmp(curr.key, key) > 0:
+			curr = curr.left
+		default:
+			return true
+		}
+	}
+	return false
+}
+
+func (m *OrderedMap[K, V]) Size() int {
+	return m.size
+}
+
+func (m *OrderedMap[K, V]) ForEach(action func(K, V)) {
+	traverse(m.root, action)
+}
+
+func deleteNode[K comparable, V any](node *Node[K, V], key K, cmp cmpFn[K]) (*Node[K, V], bool) {
+	if node == nil {
+		return nil, false
+	}
+
+	var deleted bool
+	switch {
+	case cmp(node.key, key) < 0:
+		node.right, deleted = deleteNode(node.right, key, cmp)
+	case cmp(node.key, key) > 0:
+		node.left, deleted = deleteNode(node.left, key, cmp)
+	default:
+		deleted = true
+		if node.left == nil {
+			return node.right, deleted
+		}
+		if node.right == nil {
+			return node.left, deleted
+		}
+
+		rightMin := findMin(node.right)
+		node.key = rightMin.key
+		node.value = rightMin.value
+		node.right, _ = deleteNode(node.right, rightMin.key, cmp)
+	}
+
+	return node, deleted
+}
+
+func traverse[K comparable, V any](node *Node[K, V], action func(K, V)) {
+	if node == nil {
+		return
+	}
+	traverse(node.left, action)
+	action(node.key, node.value)
+	traverse(node.right, action)
+}
+
+func findMin[K comparable, V any](n *Node[K, V]) *Node[K, V] {
+	for n.left != nil {
+		n = n.left
+	}
+	return n
 }
 
 func TestCircularQueue(t *testing.T) {
-	data := NewOrderedMap()
+	data := NewOrderedMap[int, int](cmp.Compare)
 	assert.Zero(t, data.Size())
 
 	data.Insert(10, 10)
