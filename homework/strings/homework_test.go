@@ -15,9 +15,10 @@ type COWBuffer struct {
 }
 
 func NewCOWBuffer(data []byte) COWBuffer {
+	ref := 1
 	buffer := COWBuffer{
 		data: data,
-		refs: new(int),
+		refs: &ref,
 	}
 	runtime.SetFinalizer(&buffer, func(buffer *COWBuffer) {
 		buffer.Close()
@@ -42,16 +43,14 @@ func (b *COWBuffer) Close() {
 		*b.refs--
 		return
 	}
-
-	b.data = nil
-	b.refs = nil
 }
 
 func (b *COWBuffer) Update(index int, value byte) bool {
 	if index < 0 || index >= len(b.data) {
 		return false
 	}
-	if *b.refs > 0 {
+	if *b.refs > 1 {
+		*b.refs--
 		dataCopy := make([]byte, len(b.data))
 		copy(dataCopy, b.data)
 
